@@ -46,3 +46,7 @@ Additionally, I have updated the code to accommodate the new component. My initi
 The code is not yet fully complete, as I have intentionally left a few functions and classes unimplemented for a future update.
 
 A note on the rewiring: In regards to this, my plan is to include I2C or SPI interfacing with the two MODE pins for volume control / software mute / EQ / filters.
+
+
+# Component
+USB-micro laddarmodul Li-Ion/LiPo 0.1/0.5A JST 
