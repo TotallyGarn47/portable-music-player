@@ -8,7 +8,6 @@
 #include <AudioOutputI2S.h>
 
 #include <AudioGeneratorFLAC.h>
-#include <AudioGeneratorWAV.h>
 #include <AudioGeneratorMP3.h>
 
 #define SD_CLK 2
@@ -28,7 +27,6 @@ AudioOutputI2S *out;
 
 AudioGeneratorFLAC *flac;
 AudioGeneratorMP3 *mp3;
-AudioGeneratorWAV *wav;
 
 void show_message(const char *text) {
   Serial.println(text);
@@ -70,23 +68,18 @@ void ini_audioOutput() {
   out->SetBuffers(8, 1024);
   out->SetGain(1.0);
 
-  file = new AudioFileSourceSD("/Dina Ögon - Berget (SPOTISAVER).mp3");
-  // file = new AudioFileSourceSD("/Berget - Dina Ögon.flac");
-  buff = new AudioFileSourceBuffer(file, 65536);  // 128 KB read-ahead
+  // file = new AudioFileSourceSD("/Dina Ögon - Berget (SPOTISAVER).mp3");
+  file = new AudioFileSourceSD("/Berget - Dina Ögon.flac");
+  buff = new AudioFileSourceBuffer(file, 34048);  // 64 KB read-ahead
 
   mp3 = new AudioGeneratorMP3();
   flac = new AudioGeneratorFLAC();
-  wav = new AudioGeneratorWAV();
 
   // if (!mp3->begin(buff, out)) {
-  //   show_message("MP3 begin failed!");
-  // }
-  // if (!flac->begin(buff, out)) {  // pass buff, not file
-  //   show_message("FLAC begin failed");
-  // }
-
-  if (!wav->begin(buff, out)) {
-    show_message("WAV begin failed!");
+   // show_message("MP3 begin failed!");
+  //}
+   if (!flac->begin(buff, out)) {  // pass buff, not file
+     show_message("FLAC begin failed");
   }
 }
 
@@ -99,22 +92,16 @@ void setup() {
 }
 
 void loop() {
-  // if (mp3->isRunning()) {
-  //   if (!mp3->loop()) {
-  //     mp3->stop();
-  //     show_message("Finished");
-  //   }
+   //if (mp3->isRunning()) {
+    // if (!mp3->loop()) {
+     //  mp3->stop();
+      // show_message("Finished");
+    // }
   // }
-  if (wav->isRunning()) {
-    if (!wav->loop()) {
-      wav->stop();
-      show_message("Finished");
-    }
-  }
-  // if (flac->isRunning()) {
-  //   if (!flac->loop()) {
-  //     flac->stop();
-  //     show_message("Finished");
-  //   }
-  // }
+  if (flac->isRunning()) {
+     if (!flac->loop()) {
+       flac->stop();
+       show_message("Finished");
+     }
+   }
 }
