@@ -1,13 +1,13 @@
-#include <SPI.h>
 #include <SD.h>
-#include <Wire.h>
+#include <SPI.h>
 #include <U8g2lib.h>
+#include <Wire.h>
 
-#include <AudioFileSourceSD.h>
 #include <AudioFileSourceBuffer.h>
+#include <AudioFileSourceSD.h>
 #include <AudioOutputI2S.h>
 
-#include <AudioGeneratorFLAC.h>
+// #include <AudioGeneratorFLAC.h>
 #include <AudioGeneratorMP3.h>
 
 #define SD_CLK 2
@@ -25,7 +25,7 @@ AudioFileSourceSD *file;
 AudioFileSourceBuffer *buff;
 AudioOutputI2S *out;
 
-AudioGeneratorFLAC *flac;
+// AudioGeneratorFLAC *flac;
 AudioGeneratorMP3 *mp3;
 
 void show_message(const char *text) {
@@ -64,22 +64,18 @@ void ini_SD() {
 
 void ini_audioOutput() {
   out = new AudioOutputI2S();
-  out->SetPinout(7, 8, 6);  // BCK, WSEL, DIN
+  out->SetPinout(7, 8, 6); // BCK, WSEL, DIN
   out->SetBuffers(8, 1024);
-  out->SetGain(1.0);
+  out->SetGain(0.5);
 
-  // file = new AudioFileSourceSD("/Dina Ögon - Berget (SPOTISAVER).mp3");
-  file = new AudioFileSourceSD("/Berget - Dina Ögon.flac");
-  buff = new AudioFileSourceBuffer(file, 34048);  // 64 KB read-ahead
+  file = new AudioFileSourceSD("/Dina Ögon - Berget (SPOTISAVER).mp3");
+  // file = new AudioFileSourceSD("/Berget - Dina Ögon.flac");
+  buff = new AudioFileSourceBuffer(file, 34048); // 64 KB read-ahead
 
   mp3 = new AudioGeneratorMP3();
-  flac = new AudioGeneratorFLAC();
 
-  // if (!mp3->begin(buff, out)) {
-   // show_message("MP3 begin failed!");
-  //}
-   if (!flac->begin(buff, out)) {  // pass buff, not file
-     show_message("FLAC begin failed");
+  if (!mp3->begin(buff, out)) {
+    show_message("MP3 begin failed!");
   }
 }
 
@@ -92,16 +88,15 @@ void setup() {
 }
 
 void loop() {
-   //if (mp3->isRunning()) {
-    // if (!mp3->loop()) {
-     //  mp3->stop();
-      // show_message("Finished");
-    // }
-  // }
-  if (flac->isRunning()) {
-     if (!flac->loop()) {
-       flac->stop();
-       show_message("Finished");
-     }
-   }
+  if (mp3->isRunning()) {
+    if (!mp3->loop()) {
+      mp3->stop();
+      show_message("Finished");
+    }
+  }
+}
+
+void loop1() {
+  delay(1000);
+  show_message("Grrrrrr mondays");
 }
