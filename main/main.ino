@@ -20,7 +20,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 AudioFileSourceSD *file;
 AudioFileSourceBuffer *buff;
-AudioOutputI2S *outr;
+AudioOutputI2S *out;
 AudioGeneratorMP3 *mp3;
 
 File root;
@@ -73,12 +73,7 @@ void ini_audioOutput() {
 
 // Returns the path of the next .mp3 in the root dir
 String nextMp3Path() {
-  // 1. Save an index of what song is to play
-  // 2. Count from the back of the string and remove everything before the first
-  //    "\". This is the oly relevant file information since all of the songs are
-  //    in the root folder
-
-  String fetched_string = getCSVValue(current_playlist, currently_playing * 2 + 1, 0)
+  String fetched_string = getCSVValue(current_playlist, currently_playing * 2 + 1, 0);
   int lastSlash = fetched_string.lastIndexOf('\\');
   return (lastSlash != -1) ? "/" + fetched_string.substring(lastSlash + 1) : fetched_string;
 }
@@ -86,7 +81,7 @@ String nextMp3Path() {
 String getCSVValue(const char* filename, int targetRow, int targetCol) {
   File file = SD.open(filename);
   if (!file) {
-    return "Error: File not found";
+    return "";
   }
 
   int currentRow = 0;
@@ -101,6 +96,7 @@ String getCSVValue(const char* filename, int targetRow, int targetCol) {
   }
 
   file.close();
+  return "";
 }
 
 String parseColumn(String data, int targetCol) {
@@ -120,6 +116,7 @@ String parseColumn(String data, int targetCol) {
   if (currentCol == targetCol) {
     return data.substring(startIndex);
   }
+  return "";
 }
 
 void stopPlayback() {
@@ -182,4 +179,10 @@ void loop() {
     delay(2000); // nothing playing; retry occasionally
     playNext();
   }
+}
+
+void loop1() {
+  delay(1000);
+  const char* str = nextMp3Path().c_str();
+  show_message(str);
 }
