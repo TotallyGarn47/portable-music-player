@@ -6,8 +6,6 @@
 #include <AudioFileSourceBuffer.h>
 #include <AudioFileSourceSD.h>
 #include <AudioOutputI2S.h>
-
-// #include <AudioGeneratorFLAC.h>
 #include <AudioGeneratorMP3.h>
 
 #define SD_CLK 2
@@ -18,15 +16,14 @@
 #define I2C_SDA 0
 #define I2C_SCL 1
 
-// SSD1306 128x64, full buffer, hardware I2C
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 AudioFileSourceSD *file;
 AudioFileSourceBuffer *buff;
-AudioOutputI2S *out;
-
-// AudioGeneratorFLAC *flac;
+AudioOutputI2S *outr;
 AudioGeneratorMP3 *mp3;
+
+File root;
 
 void show_message(const char *text) {
   Serial.println(text);
@@ -45,11 +42,10 @@ void ini_u8g2() {
     return;
   }
   Serial.println("u8g2 OK");
-
   delay(500);
 }
 
-void ini_SD() {
+bool ini_SD() {
   SPI.setSCK(SD_CLK);
   SPI.setTX(SD_SO);
   SPI.setRX(SD_SI);
@@ -57,46 +53,86 @@ void ini_SD() {
 
   if (!SD.begin(SD_CS, 25000000)) {
     show_message("SD failed");
-    return;
+    return false;
   }
   show_message("SD OK");
+
+  root = SD.open("/"); // Choose playlist here
+  return true;
 }
 
 void ini_audioOutput() {
   out = new AudioOutputI2S();
-  out->SetPinout(7, 8, 6); // BCK, WSEL, DIN
+  out->SetPinout(7, 8, 6);  // BCK, WSEL (must be BCK+1), DIN
   out->SetBuffers(8, 1024);
   out->SetGain(0.5);
+}
 
-  file = new AudioFileSourceSD("/Dina Ögon - Berget (SPOTISAVER).mp3");
-  // file = new AudioFileSourceSD("/Berget - Dina Ögon.flac");
-  buff = new AudioFileSourceBuffer(file, 34048); // 64 KB read-ahead
+// Returns the path of the next .mp3 in the root dir
+String nextMp3Path() {
+  for (int pass = 0; pass < 2; pass++) {
+    File f;
+    while ((f = root.openNextFile())) {
+      bool isDir = f.isDirectory();
+      String name = f.name();
+      f.close();
+      if (isDir || name.startsWith(".")) continue;
 
+      String lower = name;
+      lower.toLowerCase();
+      if (lower.endsWith(".mp3")) return "/" + name;
+    }
+    root.rewindDirectory();
+  }
+  return "";  // no mp3 files in folder
+}
+
+void stopPlayback() {
+  if (mp3) { mp3->stop(); delete mp3; mp3 = nullptr; }
+  if (buff) { buff->close(); delete buff; buff = nullptr; }
+  if (file) { delete file; file = nullptr; }
+}
+
+bool playNext() {
+  stopPlayback();
+
+  String path = nextMp3Path();
+  if (path.length() == 0) {
+    show_message("No MP3 files");
+    return false;
+  }
+
+  file = new AudioFileSourceSD(path.c_str());
+  buff = new AudioFileSourceBuffer(file, 32 * 1024);  // 32 KB read-ahead
   mp3 = new AudioGeneratorMP3();
 
   if (!mp3->begin(buff, out)) {
     show_message("MP3 begin failed!");
+    stopPlayback();
+    return false;
   }
+
+  show_message(path.c_str() + 1);  // skip leading '/'
+  return true;
 }
 
 void setup() {
   Serial.begin(115200);
 
   ini_u8g2();
-  ini_SD();
+  if (!ini_SD()) return;
   ini_audioOutput();
+  playNext();
 }
 
 void loop() {
-  if (mp3->isRunning()) {
+  if (mp3 && mp3->isRunning()) {
     if (!mp3->loop()) {
-      mp3->stop();
-      show_message("Finished");
+      playNext();  // song finished -> next one
     }
+  } else if (root && out) {
+    delay(2000);   // nothing playing; retry occasionally
+    playNext();
   }
 }
 
-void loop1() {
-  delay(1000);
-  show_message("Grrrrrr mondays");
-}
