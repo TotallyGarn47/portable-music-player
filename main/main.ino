@@ -5,8 +5,9 @@
 
 #include <AudioFileSourceBuffer.h>
 #include <AudioFileSourceSD.h>
-#include <AudioOutputI2S.h>
 #include <AudioGeneratorMP3.h>
+#include <AudioOutputI2S.h>
+
 
 #define SD_CLK 2
 #define SD_SI 4
@@ -63,34 +64,39 @@ bool ini_SD() {
 
 void ini_audioOutput() {
   out = new AudioOutputI2S();
-  out->SetPinout(7, 8, 6);  // BCK, WSEL (must be BCK+1), DIN
+  out->SetPinout(7, 8, 6); // BCK, WSEL (must be BCK+1), DIN
   out->SetBuffers(8, 1024);
   out->SetGain(0.5);
 }
 
 // Returns the path of the next .mp3 in the root dir
 String nextMp3Path() {
-  for (int pass = 0; pass < 2; pass++) {
-    File f;
-    while ((f = root.openNextFile())) {
-      bool isDir = f.isDirectory();
-      String name = f.name();
-      f.close();
-      if (isDir || name.startsWith(".")) continue;
+  
+  unsigned const int song_index_length = "Test.m3u8" // Temp, will introduce a global playlist variable later
+  unsigned int song_index = []
 
-      String lower = name;
-      lower.toLowerCase();
-      if (lower.endsWith(".mp3")) return "/" + name;
-    }
-    root.rewindDirectory();
-  }
-  return "";  // no mp3 files in folder
+  // Save an index of what song is to play next, index is to reference an array
+  // of song index numbers 
+  // Count from the back of the string and remove anything before the first "\"
+
+  return ""; // no mp3 files in folder
 }
 
 void stopPlayback() {
-  if (mp3) { mp3->stop(); delete mp3; mp3 = nullptr; }
-  if (buff) { buff->close(); delete buff; buff = nullptr; }
-  if (file) { delete file; file = nullptr; }
+  if (mp3) {
+    mp3->stop();
+    delete mp3;
+    mp3 = nullptr;
+  }
+  if (buff) {
+    buff->close();
+    delete buff;
+    buff = nullptr;
+  }
+  if (file) {
+    delete file;
+    file = nullptr;
+  }
 }
 
 bool playNext() {
@@ -103,7 +109,7 @@ bool playNext() {
   }
 
   file = new AudioFileSourceSD(path.c_str());
-  buff = new AudioFileSourceBuffer(file, 32 * 1024);  // 32 KB read-ahead
+  buff = new AudioFileSourceBuffer(file, 32 * 1024); // 32 KB read-ahead
   mp3 = new AudioGeneratorMP3();
 
   if (!mp3->begin(buff, out)) {
@@ -112,7 +118,7 @@ bool playNext() {
     return false;
   }
 
-  show_message(path.c_str() + 1);  // skip leading '/'
+  show_message(path.c_str() + 1); // skip leading '/'
   return true;
 }
 
@@ -120,7 +126,8 @@ void setup() {
   Serial.begin(115200);
 
   ini_u8g2();
-  if (!ini_SD()) return;
+  if (!ini_SD())
+    return;
   ini_audioOutput();
   playNext();
 }
@@ -128,11 +135,10 @@ void setup() {
 void loop() {
   if (mp3 && mp3->isRunning()) {
     if (!mp3->loop()) {
-      playNext();  // song finished -> next one
+      playNext(); // song finished -> next one
     }
   } else if (root && out) {
-    delay(2000);   // nothing playing; retry occasionally
+    delay(2000); // nothing playing; retry occasionally
     playNext();
   }
 }
-
