@@ -8,7 +8,6 @@
 #include <AudioGeneratorMP3.h>
 #include <AudioOutputI2S.h>
 
-
 #define SD_CLK 2
 #define SD_SI 4
 #define SD_SO 3
@@ -25,6 +24,9 @@ AudioOutputI2S *outr;
 AudioGeneratorMP3 *mp3;
 
 File root;
+
+unsigned int currently_playing = 0; // Index of the song currently playing
+const char *current_playlist = "test.csv";
 
 void show_message(const char *text) {
   Serial.println(text);
@@ -71,15 +73,53 @@ void ini_audioOutput() {
 
 // Returns the path of the next .mp3 in the root dir
 String nextMp3Path() {
-  
-  unsigned const int song_index_length = "Test.m3u8" // Temp, will introduce a global playlist variable later
-  unsigned int song_index = []
+  // 1. Save an index of what song is to play
+  // 2. Count from the back of the string and remove everything before the first
+  //    "\". This is the oly relevant file information since all of the songs are
+  //    in the root folder
 
-  // Save an index of what song is to play next, index is to reference an array
-  // of song index numbers 
-  // Count from the back of the string and remove anything before the first "\"
+  String fetched_string = getCSVValue(current_playlist, currently_playing * 2 + 1, 0)
+  int lastSlash = fetched_string.lastIndexOf('\\');
+  return (lastSlash != -1) ? "/" + fetched_string.substring(lastSlash + 1) : fetched_string;
+}
 
-  return ""; // no mp3 files in folder
+String getCSVValue(const char* filename, int targetRow, int targetCol) {
+  File file = SD.open(filename);
+  if (!file) {
+    return "Error: File not found";
+  }
+
+  int currentRow = 0;
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+
+    if (currentRow == targetRow) {
+      file.close();
+      return parseColumn(line, targetCol);
+    }
+    currentRow++;
+  }
+
+  file.close();
+}
+
+String parseColumn(String data, int targetCol) {
+  int currentCol = 0;
+  int startIndex = 0;
+  int commaIndex = data.indexOf(',');
+
+  while (commaIndex != -1) {
+    if (currentCol == targetCol) {
+      return data.substring(startIndex, commaIndex);
+    }
+    startIndex = commaIndex + 1;
+    commaIndex = data.indexOf(',', startIndex);
+    currentCol++;
+  }
+
+  if (currentCol == targetCol) {
+    return data.substring(startIndex);
+  }
 }
 
 void stopPlayback() {
@@ -111,6 +151,7 @@ bool playNext() {
   file = new AudioFileSourceSD(path.c_str());
   buff = new AudioFileSourceBuffer(file, 32 * 1024); // 32 KB read-ahead
   mp3 = new AudioGeneratorMP3();
+  currently_playing++;
 
   if (!mp3->begin(buff, out)) {
     show_message("MP3 begin failed!");
