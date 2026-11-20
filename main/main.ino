@@ -1,12 +1,14 @@
 #include <SD.h>
 #include <SPI.h>
-#include <U8g2lib.h>
 #include <Wire.h>
 
 #include <AudioFileSourceBuffer.h>
 #include <AudioFileSourceSD.h>
 #include <AudioOutputI2S.h>
 #include <AudioGeneratorMP3.h>
+
+#include "Animation.h"
+#include <U8g2lib.h>
 
 #define SD_CLK 2
 #define SD_SI 4
@@ -25,18 +27,45 @@ AudioGeneratorMP3 *mp3;
 
 File root;
 
-uint32_t songDuration = 0;  // Duration of the current song in seconds
-
-auto_init_mutex(displayMutex);
-volatile bool displayUpdate = false;
-char displayText[64] = "";
+uint32_t songDuration = 0;
 
 void show_message(const char *text) {
-  mutex_enter_blocking(&displayMutex);
-  strncpy(displayText, text, sizeof(displayText) - 1);
-  displayText[sizeof(displayText) - 1] = '\0';
-  displayUpdate = true;
-  mutex_exit(&displayMutex);
+  Serial.println(text);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x10_tr);
+  u8g2.drawStr(0, 20, text);
+  u8g2.sendBuffer();
+}
+
+void ini_u8g2() {
+  Wire.setSDA(I2C_SDA);
+  Wire.setSCL(I2C_SCL);
+  Wire.setClock(400000);
+  while(!u8g2.begin()) {
+    delay(1);
+  }
+  delay(500);
+}
+
+void ini_SD() {
+  SPI.setSCK(SD_CLK);
+  SPI.setTX(SD_SO);
+  SPI.setRX(SD_SI);
+  SPI.setCS(SD_CS);
+
+  while(!SD.begin(SD_CS, 25000000)) {
+    show_message("SD failed to initialize!");
+    delay(1); 
+  }
+
+  root = SD.open("/"); // Choose the playlist here
+}
+
+void ini_audioOutput() {
+  out = new AudioOutputI2S();
+  out->SetPinout(7, 8, 6);  // BCK, WSEL (must be BCK+1), DIN
+  out->SetBuffers(8, 1024);
+  out->SetGain(0.5);
 }
 
 // Stulet av gemini, alldeles för komplicerat för mig annars
@@ -122,57 +151,22 @@ uint32_t getMp3DurationSeconds(const char *path) {
   return ((fileSize - pos) * 8UL) / bitrate;
 }
 
-void ini_u8g2() {
-  Wire.setSDA(I2C_SDA);
-  Wire.setSCL(I2C_SCL);
-
-  if (!u8g2.begin()) {
-    return;
-  }
-  Wire.setClock(400000);
-  delay(500);
-}
-
-bool ini_SD() {
-  SPI.setSCK(SD_CLK);
-  SPI.setTX(SD_SO);
-  SPI.setRX(SD_SI);
-  SPI.setCS(SD_CS);
-
-  if (!SD.begin(SD_CS, 25000000)) {
-    show_message("SD failed");
-    return false;
-  }
-  show_message("SD OK");
-
-  root = SD.open("/");  // Choose playlist here
-  return true;
-}
-
-void ini_audioOutput() {
-  out = new AudioOutputI2S();
-  out->SetPinout(7, 8, 6);  // BCK, WSEL (must be BCK+1), DIN
-  out->SetBuffers(8, 1024);
-  out->SetGain(0.5);
-}
-
-// Returns the path of the next .mp3 in the root dir
 String nextMp3Path() {
   for (int pass = 0; pass < 2; pass++) {
     File f;
-    while ((f = root.openNextFile())) {
-      bool isDir = f.isDirectory();
+    while (f = root.openNextFile()) {
+      bool isDir = f.isDirectory(); 
       String name = f.name();
       f.close();
-      if (isDir || name.startsWith(".")) continue;
+      if(isDir || name.startsWith(".")) continue;
 
       String lower = name;
       lower.toLowerCase();
-      if (lower.endsWith(".mp3")) return "/" + name;
+      if(lower.endsWith(".mp3")) return "/" + name;
     }
     root.rewindDirectory();
   }
-  return "";  // no mp3 files in folder
+  return ""; // Returns nothing if there are no files/mp3 files in the specified directory
 }
 
 void stopPlayback() {
@@ -196,33 +190,60 @@ bool playNext() {
   stopPlayback();
 
   String path = nextMp3Path();
-  if (path.length() == 0) {
+  if(path.length() == 0 ) {
     songDuration = 0;
-    show_message("No MP3 files");
     return false;
   }
 
   songDuration = getMp3DurationSeconds(path.c_str());
 
   file = new AudioFileSourceSD(path.c_str());
-  buff = new AudioFileSourceBuffer(file, 32 * 1024);  // 32 KB read-ahead
+  buff = new AudioFileSourceBuffer(file, 32 * 1024); // 32 KB of read ahead, some files require upwards of 48 - 64 KB. 
   mp3 = new AudioGeneratorMP3();
 
-  if (!mp3->begin(buff, out)) {
+  if(!mp3->begin(buff, out)) {
     songDuration = 0;
-    show_message("MP3 begin failed!");
-    stopPlayback();
-    return false;
+    show_message("MP3 begin failed"); 
+    stopPlayback(); 
+    return false; 
   }
 
-  show_message(path.c_str() + 1);  // skip leading '/'
+  show_message(path.c_str() + 1);
   return true;
 }
 
+// [BEGIN lopaka generated]
+void updateAnimations() {
+    Animation_frame = millis() / 333 % 28;
+}
+
+void drawAnimation_Animation(void) {
+    u8g2.setDrawColor(1);
+    u8g2.drawXBMP(87, 5, 32, 32, Animation_frames[Animation_frame]);
+}
+
+void drawPlaying_screen(const char *song_name, const char *artist) {
+    u8g2.setFontMode(1);
+    u8g2.setBitmapMode(1);
+    u8g2.setFont(u8g2_font_timR12_tr);
+    u8g2.drawStr(4, 15, "Song name");
+    u8g2.setFont(u8g2_font_profont10_tr);
+    u8g2.drawStr(4, 29, "Artist");
+    u8g2.drawFrame(24, 42, 82, 10);
+    u8g2.drawBox(24, 43, 71, 8);
+    u8g2.setFont(u8g2_font_4x6_tr);
+    u8g2.drawStr(2, 50, "16:53");
+    u8g2.drawStr(108, 49, "16:53");
+    drawAnimation_Animation();
+}
+
 void setup() {
-  if (!ini_SD()) return;
+  ini_SD();
   ini_audioOutput();
   playNext();
+
+  show_message("Initialized!"); 
+  delay(500);
 }
 
 void loop() {
@@ -241,16 +262,10 @@ void setup1() {
 }
 
 void loop1() {
-  if (displayUpdate) {
-    char buf[64];
-    mutex_enter_blocking(&displayMutex);
-    strncpy(buf, displayText, sizeof(buf));
-    displayUpdate = false;
-    mutex_exit(&displayMutex);
-
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_6x10_tr);
-    u8g2.drawStr(0, 20, buf);
-    u8g2.sendBuffer();
-  }
+    updateAnimations();
+    u8g2.firstPage();
+    do {
+        drawPlaying_screen("Berget", "Dina ögon");
+    } while (u8g2.nextPage());
+    delay(900);
 }
